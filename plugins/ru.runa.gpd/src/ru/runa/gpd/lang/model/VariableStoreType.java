@@ -23,13 +23,4 @@ public enum VariableStoreType {
     public String asProperty() {
         return name().toLowerCase();
     }
-
-    public static final VariableStoreType valueOfDescription(String description) {
-        for (final VariableStoreType value : values()) {
-            if (value.description.equals(description)) {
-                return value;
-            }
-        }
-        throw new IllegalArgumentException(String.format("fault find enum by VariableStoreType.description=\"%s\"", description));
-    }
 }
