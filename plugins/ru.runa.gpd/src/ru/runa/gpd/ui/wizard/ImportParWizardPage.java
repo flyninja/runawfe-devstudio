@@ -6,14 +6,18 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.runtime.IPath;
+import org.eclipse.jface.viewers.IStructuredContentProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.LabelProvider;
@@ -23,6 +27,7 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.SashForm;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
@@ -30,10 +35,14 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Group;
 import org.eclipse.swt.widgets.Text;
+import org.eclipse.swt.widgets.TreeItem;
+import org.eclipse.ui.ISharedImages;
+import org.eclipse.ui.PlatformUI;
 
 import ru.runa.gpd.Localization;
 import ru.runa.gpd.PluginLogger;
 import ru.runa.gpd.ProcessCache;
+import ru.runa.gpd.SharedImages;
 import ru.runa.gpd.lang.model.ProcessDefinition;
 import ru.runa.gpd.settings.WFEConnectionPreferencePage;
 import ru.runa.gpd.ui.custom.Dialogs;
@@ -128,8 +137,7 @@ public class ImportParWizardPage extends ImportWizardPage {
 
                     @Override
                     public void onSynchronizationCompleted() {
-                        serverDefinitionViewer.setInput(WFEServerProcessDefinitionImporter.getInstance().loadCachedData());
-                        serverDefinitionViewer.refresh(true);
+                    	setupServerDefinitionViewer();
                     }
                 });
         createServerDefinitionsGroup(importGroup);
@@ -149,23 +157,29 @@ public class ImportParWizardPage extends ImportWizardPage {
                     long end = System.currentTimeMillis();
                     PluginLogger.logInfo("def sync [sec]: " + ((end - start) / 1000));
                 }
-                serverDefinitionViewer.setInput(WFEServerProcessDefinitionImporter.getInstance().loadCachedData());
-                serverDefinitionViewer.refresh(true);
+                setupServerDefinitionViewer();
             }
         }
     }
 
+    private void setupServerDefinitionViewer(){
+    	Map<WfDefinition, List<WfDefinition>> definitions = WFEServerProcessDefinitionImporter.getInstance().loadCachedData();
+        TreeObject treeDefinitions = createTree(getWfDefinitionsByType(definitions));
+        serverDefinitionViewer.setInput(treeDefinitions);
+        serverDefinitionViewer.refresh(true);
+    }
+    
     private void createServerDefinitionsGroup(Composite parent) {
         serverDefinitionViewer = new TreeViewer(parent);
         GridData gridData = new GridData(GridData.FILL_BOTH);
         gridData.heightHint = 100;
         serverDefinitionViewer.getControl().setLayoutData(gridData);
-        serverDefinitionViewer.setContentProvider(new DefinitionTreeContentProvider());
-        serverDefinitionViewer.setLabelProvider(new DefinitionLabelProvider());
+        serverDefinitionViewer.setContentProvider(new ViewContentProvider());
+        serverDefinitionViewer.setLabelProvider(new ViewLabelProvider());
         serverDefinitionViewer.setInput(new Object());
     }
 
-    public boolean performFinish() {
+    public boolean performFinish() {    	
         InputStream[] parInputStreams = null;
         try {
             IContainer container = getSelectedContainer();
@@ -183,13 +197,16 @@ public class ImportParWizardPage extends ImportWizardPage {
                     parInputStreams[i] = new FileInputStream(fileName);
                 }
             } else {
-                List<?> selections = ((IStructuredSelection) serverDefinitionViewer.getSelection()).toList();
-                List<WfDefinition> defSelections = Lists.newArrayList();
-                for (Object object : selections) {
-                    if (object instanceof WfDefinition) {
-                        defSelections.add((WfDefinition) object);
+            	TreeItem[] selections = serverDefinitionViewer.getTree().getSelection();
+            	List<WfDefinition> defSelections = Lists.newArrayList();
+                for(int i = 0; i < selections.length; i++){
+                	Object selected = selections[i].getData();
+                	if (ProcessType.class.isInstance(selected))
+                		continue;
+                    if (selected instanceof WfDefinition) {
+                        defSelections.add((WfDefinition) selected);
                     }
-                }
+                }                
                 if (defSelections.isEmpty()) {
                     throw new Exception(Localization.getString("ImportParWizardPage.error.selectValidDefinition"));
                 }
@@ -313,5 +330,168 @@ public class ImportParWizardPage extends ImportWizardPage {
             }
             return super.getText(element);
         }
+    }
+    
+    private Map<String, List<WfDefinition>> getWfDefinitionsByType(Map<WfDefinition, List<WfDefinition>> definitions) {
+        Map grouppedDefinitionsMap = new HashMap<String, List<WfDefinition>>();
+        for (Map.Entry<WfDefinition, List<WfDefinition>> entry : definitions.entrySet()) {
+            WfDefinition definition = entry.getKey();
+            String[] categories = definition.getCategories();
+
+            for (String category : categories) {
+                if (!grouppedDefinitionsMap.containsKey(category)) {
+                    List<WfDefinition> newDefinitionlist = new ArrayList<WfDefinition>();
+                    newDefinitionlist.add(definition);
+                    grouppedDefinitionsMap.put(category, newDefinitionlist);
+                } else {
+                    List existedDefinitionlist = (List) grouppedDefinitionsMap.get(category);
+                    existedDefinitionlist.add(definition);
+                }
+            }
+        }
+        return new TreeMap<>(grouppedDefinitionsMap);
+    }
+
+    class ViewLabelProvider extends LabelProvider {
+
+        @Override
+        public String getText(Object obj) {
+            return obj.toString();
+        }
+
+        @Override
+        public Image getImage(Object obj) {
+        	if (obj instanceof ProcessType) {
+                return SharedImages.getImage("icons/project.gif");
+            }
+            return SharedImages.getImage("icons/process.gif");            
+        }
+    }
+
+    class ViewContentProvider implements IStructuredContentProvider, ITreeContentProvider {
+
+        @Override
+        public void inputChanged(Viewer v, Object oldInput, Object newInput) {
+        }
+
+        @Override
+        public void dispose() {
+        }
+
+        @Override
+        public Object[] getElements(Object parent) {
+            return getChildren(parent);
+        }
+
+        @Override
+        public Object getParent(Object child) {
+            if (child instanceof TreeObject) {
+                return ((TreeObject) child).getParent();
+            }
+            return null;
+        }
+
+        @Override
+        public Object[] getChildren(Object parent) {
+            if (parent instanceof ProcessType) {
+                return ((ProcessType) parent).getChildren();
+            }
+            return new Object[0];
+        }
+
+        @Override
+        public boolean hasChildren(Object parent) {
+            if (parent instanceof ProcessType) {
+                return ((ProcessType) parent).hasChildren();
+            }
+            return false;
+        }
+    }
+
+    class TreeObject extends WfDefinition {
+        private final String name;
+        private ProcessType processType;
+        private Long id;
+
+        public TreeObject(Long id, String name) {
+            this.name = name;
+            this.id = id;
+        }
+
+        @Override
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        public void setParent(ProcessType processType) {
+            this.processType = processType;
+        }
+
+        public ProcessType getParent() {
+            return processType;
+        }
+
+        @Override
+        public String toString() {
+            return getName();
+        }
+    }
+
+    class ProcessType extends TreeObject {
+        private final ArrayList children;
+
+        public ProcessType(String name) {
+            super(null, name);
+            children = new ArrayList();
+        }
+
+        public void addChild(TreeObject child) {
+            children.add(child);
+            child.setParent(this);
+        }
+
+        public void removeChild(TreeObject child) {
+            children.remove(child);
+            child.setParent(null);
+        }
+
+        public WfDefinition[] getChildren() {
+            return (WfDefinition[]) children.toArray(new TreeObject[children.size()]);
+        }
+
+        public boolean hasChildren() {
+            return children.size() > 0;
+        }
+    }
+
+    private TreeObject createTree(Map<String, List<WfDefinition>> definitions) {
+        ProcessType root = new ProcessType("");
+        ProcessType processType;
+        for (Map.Entry<String, List<WfDefinition>> entry : definitions.entrySet()) {
+            String groupName = entry.getKey();
+            
+            if(groupName.trim().isEmpty()){
+            	for (WfDefinition definition : entry.getValue()) {
+                    root.addChild(new TreeObject(definition.getId(), definition.getName()));
+                }
+            	continue;
+            }
+                
+            processType = new ProcessType(groupName);
+            for (WfDefinition definition : entry.getValue()) {
+                processType.addChild(new TreeObject(definition.getId(), definition.getName()));
+            }
+            root.addChild(processType);
+        }
+        return root;
     }
 }
