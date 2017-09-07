@@ -6,16 +6,12 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
 import org.eclipse.core.resources.IContainer;
-import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
-import org.eclipse.core.runtime.IPath;
-import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.viewers.IStructuredContentProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.ITreeContentProvider;
@@ -38,20 +34,15 @@ import org.eclipse.swt.widgets.TreeItem;
 
 import ru.runa.gpd.Localization;
 import ru.runa.gpd.PluginLogger;
-import ru.runa.gpd.ProcessCache;
 import ru.runa.gpd.SharedImages;
-import ru.runa.gpd.lang.model.ProcessDefinition;
 import ru.runa.gpd.settings.WFEConnectionPreferencePage;
 import ru.runa.gpd.ui.custom.Dialogs;
 import ru.runa.gpd.ui.custom.SyncUIHelper;
-import ru.runa.gpd.ui.wizard.ImportParWizardPage.CustomWfDefinition;
-import ru.runa.gpd.ui.wizard.ImportParWizardPage.CustomWfHistoryDefinition;
 import ru.runa.gpd.util.IOUtils;
 import ru.runa.gpd.wfe.ConnectorCallback;
 import ru.runa.gpd.wfe.WFEServerProcessDefinitionImporter;
 import ru.runa.wfe.definition.dto.WfDefinition;
 
-import com.google.common.base.Objects;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Lists;
 
@@ -163,7 +154,7 @@ public class ImportParWizardPage extends ImportWizardPage {
 
     private void setupServerDefinitionViewer(){
     	Map<WfDefinition, List<WfDefinition>> definitions = WFEServerProcessDefinitionImporter.getInstance().loadCachedData();
-        DefinitionNode treeDefinitions = createTree(getWfDefinitionsByType(definitions));
+    	DefinitionNode treeDefinitions = createTree(definitions);
         serverDefinitionViewer.setInput(treeDefinitions);
         serverDefinitionViewer.refresh(true);
     }
@@ -178,6 +169,20 @@ public class ImportParWizardPage extends ImportWizardPage {
         serverDefinitionViewer.setInput(new Object());
     }
 
+	private void getChildNodes(DefinitionNode node,
+			List<WfDefinition> defSelections) {
+
+		if (!node.getChildren().isEmpty()) {
+			List<DefinitionNode> nodeList = node.getChildren();
+			for (DefinitionNode currentNode : nodeList) {
+				if(currentNode != null)
+				getChildNodes(currentNode, defSelections);
+			}
+		} else {
+			defSelections.add(node);
+		}
+	}
+    
     public boolean performFinish() {
         InputStream[] parInputStreams = null;
         Process[] processes = null;
@@ -191,7 +196,7 @@ public class ImportParWizardPage extends ImportWizardPage {
                 processes = new Process[selectedFileNames.length];
                 parInputStreams = new InputStream[selectedFileNames.length];
                 for (int i = 0; i < selectedFileNames.length; i++) {                    
-                	processes[i] = new Process(selectedFileNames[i].substring(0, selectedFileNames[i].length() - 4), ""); //workaround "" processes in root tree have empty path
+                	processes[i] = new Process(selectedFileNames[i].substring(0, selectedFileNames[i].length() - 4), "", null); //workaround "" processes in root tree have empty path
                     String fileName = selectedDirFileName + File.separator + selectedFileNames[i];
                     parInputStreams[i] = new FileInputStream(fileName);
                 }
@@ -201,13 +206,10 @@ public class ImportParWizardPage extends ImportWizardPage {
             	            	
             	for(int i = 0; i < selections.length; i++){
             		Object selected = selections[i].getData();
-            		//if selected group
-            		DefinitionNode selectedDefinitionNode = (DefinitionNode) selected;
-            		if (selectedDefinitionNode.isGroup()){            			
-               		 List<DefinitionNode> nodeList = ((DefinitionNode)selected).getChildren();
-               	     for(DefinitionNode definitionNode : nodeList){
-               	    	 defSelections.add((WfDefinition) definitionNode);
-               	     }
+            		//if group is selected
+            		DefinitionNode selectedDefinitionNode = (DefinitionNode) selected;            		
+            		if (selectedDefinitionNode.isGroup()){ 
+            			getChildNodes(selectedDefinitionNode, defSelections);     
                	   }else{
                		    defSelections.add((WfDefinition) selected);
                	   }
@@ -221,7 +223,7 @@ public class ImportParWizardPage extends ImportWizardPage {
                 parInputStreams = new InputStream[defSelections.size()];
                 for (int i = 0; i < processes.length; i++) {
                 	DefinitionNode definitionNode = (DefinitionNode)defSelections.get(i);
-                    Process process = new Process(definitionNode.getName(), definitionNode.getPath());
+                    Process process = new Process(definitionNode.getName(), removeNameFromPath(definitionNode.incrementalPath), definitionNode.getVersion());
                     processes[i] = process;
                     WfDefinition stub = defSelections.get(i);
                     byte[] par = WFEServerProcessDefinitionImporter.getInstance().loadPar(stub);
@@ -234,6 +236,9 @@ public class ImportParWizardPage extends ImportWizardPage {
                 String processPath = processes[i].getPath();
 
                 processName = !processPath.trim().isEmpty() ? processPath + File.separator + processName : processName;
+                //if it is history folder
+                if(processName.contains(Localization.getString("ImportParWizardPage.page.oldDefinitionVersions")))
+                	processName = processName + "-v"+ processes[i].getVersion();
 
                 IFolder processFolder = IOUtils.getProcessFolder(container, processName);
 
@@ -244,7 +249,10 @@ public class ImportParWizardPage extends ImportWizardPage {
                 IOUtils.createFolder(processFolder);
 
                 IOUtils.extractArchiveToFolder(parInputStreams[i], processFolder);
-                IFile definitionFile = IOUtils.getProcessDefinitionFile(processFolder);
+                
+                //TODO: check, conflicting with previous logic 
+                /*
+                IFile definitionFile = IOUtils.getProcessDefinitionFile(processFolder);                
                 ProcessDefinition definition = ProcessCache.newProcessDefinitionWasCreated(definitionFile);
                 if (definition != null && !Objects.equal(definition.getName(), processFolder.getName())) {
                     // if par name differs from definition name
@@ -254,7 +262,7 @@ public class ImportParWizardPage extends ImportWizardPage {
                     IFile movedDefinitionFile = IOUtils.getProcessDefinitionFile(processFolder);
                     ProcessCache.newProcessDefinitionWasCreated(movedDefinitionFile);
                     ProcessCache.invalidateProcessDefinition(definitionFile);
-                }
+                }*/
             }
         } catch (Exception exception) {
             PluginLogger.logErrorWithoutDialog("import par", exception);
@@ -273,41 +281,6 @@ public class ImportParWizardPage extends ImportWizardPage {
         return true;
     }
 
-    private Map<String, List<CustomWfDefinition>> getWfDefinitionsByType(Map<WfDefinition, List<WfDefinition>> definitions) {
-        Map<String, List<CustomWfDefinition>> grouppedDefinitionsMap = new HashMap<String, List<CustomWfDefinition>>();
-        for (Map.Entry<WfDefinition, List<WfDefinition>> entry : definitions.entrySet()) {
-            WfDefinition definition = entry.getKey();
-            String[] categories = definition.getCategories();
-
-            List<WfDefinition> historyDefinitions = entry.getValue();
-            Map<String, List<CustomWfHistoryDefinition>> historyDefinitionsMap = null;
-
-            removeExistedDefinitionFromHistory(definition, historyDefinitions);
-
-            if(!historyDefinitions.isEmpty()){
-            	historyDefinitionsMap = new HashMap<String, List<CustomWfHistoryDefinition>>();
-            	List <CustomWfHistoryDefinition> customWfHistoryDefinitions = new ArrayList();
-
-            	for (WfDefinition historyDefinition : historyDefinitions) {
-            		customWfHistoryDefinitions.add(new CustomWfHistoryDefinition(historyDefinition.getName(), historyDefinition.getId(), historyDefinition.getVersion()));
-            	}
-            	historyDefinitionsMap.put(Localization.getString("ImportParWizardPage.page.oldDefinitionVersions"), customWfHistoryDefinitions);
-            }
-
-            for (String category : categories) {
-                if (!grouppedDefinitionsMap.containsKey(category)) {                	
-                    List<CustomWfDefinition> newDefinitionlist = new ArrayList<CustomWfDefinition>();
-                    newDefinitionlist.add(new CustomWfDefinition(definition.getName(), definition.getId(), historyDefinitionsMap));
-                    grouppedDefinitionsMap.put(category, newDefinitionlist);                    
-                } else {
-                    List<CustomWfDefinition> existedDefinitionlist = (List) grouppedDefinitionsMap.get(category);
-                    existedDefinitionlist.add(new CustomWfDefinition(definition.getName(), definition.getId(), historyDefinitionsMap));
-                }
-            }
-        }
-        return new TreeMap<>(grouppedDefinitionsMap);
-    }
-
     private void removeExistedDefinitionFromHistory(WfDefinition definition, List<WfDefinition> historyDefinitions){
     	Long definitionVersion = definition.getVersion();
     	for (WfDefinition historyDefinition : historyDefinitions) {
@@ -318,13 +291,11 @@ public class ImportParWizardPage extends ImportWizardPage {
     }
 
     class ViewLabelProvider extends LabelProvider {
-
         @Override
         public String getText(Object obj) {
         	DefinitionNode definitionNode = (DefinitionNode)obj;
             return definitionNode.isHistory() ? definitionNode.getVersion().toString() : definitionNode.getName();
         }
-
         @Override
         public Image getImage(Object obj) {
         	DefinitionNode definitionNode = (DefinitionNode)obj;
@@ -372,56 +343,29 @@ public class ImportParWizardPage extends ImportWizardPage {
         }
     }
 
-    private DefinitionNode createTree(Map<String, List<CustomWfDefinition>> definitions) {
+    class DefinitionNode extends WfDefinition{    	
 
-    	DefinitionNode root = new DefinitionNode("Root", null, null, true, false, null);
-    	DefinitionNode processType;
-    	DefinitionNode historyProcessType;
+		private static final long serialVersionUID = 1L;
+		
+		private List<DefinitionNode> childs;
+        private List<DefinitionNode> leafs;
+        private String name;
+        private String incrementalPath;
+        private Long id = null;    
+        private Long version = null;
+        private boolean isGroup;
+        private boolean isHistory;
 
-        for (Map.Entry<String, List<CustomWfDefinition>> entry : definitions.entrySet()) {
-            String groupName = entry.getKey();            
-
-            if(groupName.trim().isEmpty()){
-            	for (CustomWfDefinition definition : entry.getValue()) {                    
-            		root.addChild(new DefinitionNode(definition.getName(), definition.getId(), null, false, false, groupName));
-                }
-            	continue;
-            }
-
-            processType = new DefinitionNode(groupName, null, null, true, false, null);
-
-            for (CustomWfDefinition definition : entry.getValue()) {
-            	DefinitionNode treeObject = new DefinitionNode(definition.getName(), definition.getId(), null, false, false, groupName);
-            	//add history 
-            	if(null != definition.getCustomWfHistoryDefinitions() && !definition.getCustomWfHistoryDefinitions().isEmpty())
-            	for (Map.Entry<String, List<CustomWfHistoryDefinition>> historyEntry : definition.getCustomWfHistoryDefinitions().entrySet()) {
-                     String historyGroupName = historyEntry.getKey();
-            		 historyProcessType = new DefinitionNode(historyGroupName, null, null, true, false, historyGroupName);
-
-                     for (CustomWfHistoryDefinition historyDefinition : historyEntry.getValue()) {
-                    	 historyProcessType.addChild(new DefinitionNode(historyDefinition.getName(), historyDefinition.getId(), historyDefinition.getVersion(), false, true, historyGroupName));                    	 
-                     } 
-                     treeObject.addChild(historyProcessType);
-            	}
-                processType.addChild(treeObject);
-            }
-            root.addChild(processType);
-        }
-        return root;
-    }
-
-    class CustomWfDefinition{
-    	private String name;
-  	    private Long id; 
-  	    private Map<String, List<CustomWfHistoryDefinition>> customWfHistoryDefinitions;
-
-  	    public CustomWfDefinition(String name, Long id,
-  	    		Map<String, List<CustomWfHistoryDefinition>> customWfHistoryDefinitions) {
-			super();
-			this.name = name;
-			this.id = id;
-			this.customWfHistoryDefinitions = customWfHistoryDefinitions;
-		}
+        public DefinitionNode( String name, String incrementalPath, Long id, Long version, boolean isGroup, boolean isHistory ) {
+            this.childs = new ArrayList<DefinitionNode>();
+            this.leafs = new ArrayList<DefinitionNode>();
+            this.name = name;
+            this.incrementalPath = incrementalPath;            
+            this.id = id;
+            this.version = version;
+            this.isGroup = isGroup;
+            this.isHistory = isHistory;
+        }        
 
 		public String getName() {
 			return name;
@@ -439,75 +383,12 @@ public class ImportParWizardPage extends ImportWizardPage {
 			this.id = id;
 		}
 
-		public Map<String, List<CustomWfHistoryDefinition>> getCustomWfHistoryDefinitions() {
-			return customWfHistoryDefinitions;
-		}
-
-		public void setCustomWfHistoryDefinitions(
-				Map<String, List<CustomWfHistoryDefinition>> customWfHistoryDefinitions) {
-			this.customWfHistoryDefinitions = customWfHistoryDefinitions;
-		}
-    }
-
-    class CustomWfHistoryDefinition{
-    	private String name;
-  	    private Long id;
-  	    private Long version;
-
-		public CustomWfHistoryDefinition(String name, Long id, Long version) {
-			super();
-			this.name = name;
-			this.id = id;
-			this.version = version;
-		}
-		public String getName() {
-			return name;
-		}
-		public void setName(String name) {
-			this.name = name;
-		}
-		public Long getId() {
-			return id;
-		}
-		public void setId(Long id) {
-			this.id = id;
-		}
 		public Long getVersion() {
 			return version;
 		}
+
 		public void setVersion(Long version) {
 			this.version = version;
-		}
-    }
-
-    class DefinitionNode extends WfDefinition{
-        private List<DefinitionNode> children = new ArrayList<>();
-        private DefinitionNode parent = null;
-        private Long version = null;
-
-        private String name = null;
-        private Long id = null;
-        private boolean isGroup;
-        private boolean isHistory;
-        private String path;
-        
-        public DefinitionNode(String name, Long id, Long version,
-				boolean isGroup, boolean isHistory, String path) {
-			super();
-			this.name = name;
-			this.id = id;
-			this.version = version;
-			this.isGroup = isGroup;
-			this.isHistory = isHistory;
-			this.path = path;
-		}
-
-		public String getPath() {
-			return path;
-		}
-
-		public void setPath(String path) {
-			this.path = path;
 		}
 
 		public boolean isHistory() {
@@ -526,66 +407,147 @@ public class ImportParWizardPage extends ImportWizardPage {
 			this.isGroup = isGroup;
 		}
 
-		public String getName() {
-			return name;
-		}
-
-		public void setName(String name) {
-			this.name = name;
-		}
-
-		public Long getId() {
-			return id;
-		}
-
-		public void setId(Long id) {
-			this.id = id;
-		}
-
-		public Long getVersion() {
-			return version;
-		}
-
-		public void setVersion(Long version) {
-			this.version = version;
-		}
-
-		public void setChildren(List<DefinitionNode> children) {
-			this.children = children;
-		}
-
-        public void addChild(DefinitionNode child) {
-            child.setParent(this);
-            this.children.add(child);
+		public boolean isLeaf() {
+            return childs.isEmpty() && leafs.isEmpty();
         }
-
-        public void addChildren(List<DefinitionNode> children) {
-            for(DefinitionNode t : children) {
-                t.setParent(this);
+	
+        public void addElement(String currentPath, String[] list, WfDefinition wfDefinition, List<WfDefinition> historyDefinitions) {
+        	String firstInList = list[0];
+        	String currentPathAndfirstInList = currentPath+"/"+list[0];
+        	//if it is group        	
+        	if ( list.length == 1 ) {
+        		DefinitionNode currentChild = new DefinitionNode(firstInList, currentPathAndfirstInList, wfDefinition.getId(), wfDefinition.getVersion(), false, false);
+        		if(historyDefinitions != null && !historyDefinitions.isEmpty()){
+        			removeExistedDefinitionFromHistory(wfDefinition, historyDefinitions);
+        			currentChild.getChildren().add(getHistoryGroup(historyDefinitions, currentPath+"/"+list[0]));
+        			}
+            	childs.add( currentChild );
+                return;
+            } else {            	
+            	DefinitionNode currentChild = new DefinitionNode(firstInList, currentPathAndfirstInList, null, null, true, false);
+                int index = childs.indexOf( currentChild );
+                if ( index == -1 ) {
+                	//child in new group
+                    childs.add( currentChild );
+                    currentChild.addElement(currentChild.incrementalPath, Arrays.copyOfRange(list, 1, list.length), wfDefinition, historyDefinitions);
+                } else {
+                	//child in existed group
+                	DefinitionNode nextChild = childs.get(index);
+                    nextChild.addElement(currentChild.incrementalPath, Arrays.copyOfRange(list, 1, list.length), wfDefinition, historyDefinitions);
+                }
             }
-            this.children.addAll(children);
         }
 
-        public List<DefinitionNode> getChildren() {
-            return children;
+        @Override
+        public boolean equals(Object obj) {
+        	DefinitionNode cmpObj = (DefinitionNode)obj;
+            return incrementalPath.equals( cmpObj.incrementalPath ) && name.equals( cmpObj.name );
         }
 
-        private void setParent(DefinitionNode parent) {
-            this.parent = parent;
+        public void printNode( int increment ) {
+            for (int i = 0; i < increment; i++) {
+                System.out.print(" ");
+            }
+            System.out.println(incrementalPath + (isLeaf() ? " -> " + name : "")  );
+            for( DefinitionNode n: childs)
+                n.printNode(increment+2);
+            for( DefinitionNode n: leafs)
+                n.printNode(increment+2);
         }
 
-        public DefinitionNode getParent() {
-            return parent;
+        @Override
+        public String toString() {
+            return name;
         }
+        
+    	public List<DefinitionNode> getChildren() {
+    		return childs;
+    	}
+    }
+    
+    class DefinitionTree {
+
+    	DefinitionNode root;
+    	DefinitionNode commonRoot;
+
+        public DefinitionTree( DefinitionNode root ) {
+            this.root = root;
+            commonRoot = null;
+        }
+
+        public void addElement(WfDefinition wfDefinition, List<WfDefinition> historyDefinitions) {
+        	List<String> arrayList = new ArrayList<String>();
+        	for(String category : wfDefinition.getCategories()){
+        		arrayList.add(category);
+        	}
+        	
+        	arrayList.add(wfDefinition.getName());        	
+        	String[] list = arrayList.toArray(new String[0]);
+        	
+        	root.addElement(root.incrementalPath, list, wfDefinition, historyDefinitions);
+        }
+      
+        public void printTree() {
+            getCommonRoot();
+            commonRoot.printNode(0);
+        }
+
+        public DefinitionNode getCommonRoot() {
+            if ( commonRoot != null)
+                return commonRoot;
+            else {
+            	DefinitionNode current = root;
+                while ( current.leafs.size() <= 0 ) {
+                    current = current.childs.get(0);
+                }
+                commonRoot = current;
+                return commonRoot;
+            }
+        }
+    }
+    
+    private DefinitionNode createTree(Map<WfDefinition, List<WfDefinition>> definitions) {
+		DefinitionTree tree = new DefinitionTree(new DefinitionNode("", "", null, null, false, false));
+    	
+    	for (Map.Entry<WfDefinition, List<WfDefinition>> entry : definitions.entrySet()){
+    		
+            WfDefinition wfDefinition = entry.getKey(); 
+            List<WfDefinition> historyDefinitions = entry.getValue();           
+
+            tree.addElement(wfDefinition, historyDefinitions);
+            }
+    	
+    	return tree.root;
+	}	
+        
+    public DefinitionNode getHistoryGroup(List<WfDefinition> historyDefinitions, String currentPath){
+        DefinitionNode historyGroup = null;        
+        String oldDefinitionVersions = Localization.getString("ImportParWizardPage.page.oldDefinitionVersions");
+        
+        if(historyDefinitions != null && !historyDefinitions.isEmpty()){
+         
+       	 historyGroup = new DefinitionNode(oldDefinitionVersions, currentPath+"/"+oldDefinitionVersions, null, null, true, false);
+       	 
+       	 for(WfDefinition historyDefinition : historyDefinitions){
+       		 String name = historyDefinition.getName();
+       		 Long id = historyDefinition.getId();
+       		 Long version = historyDefinition.getVersion();
+       		 DefinitionNode historyDefinitionNode = new DefinitionNode(name, currentPath+"/"+oldDefinitionVersions+"/"+name, id, version, false, true);
+       		 historyGroup.getChildren().add(historyDefinitionNode);
+       	 }
+        	}
+        return 	historyGroup;	
     }
 
 	class Process{
-		String name;
-		String path;
-		public Process(String name, String path) {
+		private String name;
+		private String path;
+		private Long version;
+		public Process(String name, String path, Long version) {
 			super();
 			this.name = name;
 			this.path = path;
+			this.version = version;
 		}
 		public String getName() {
 			return name;
@@ -599,5 +561,16 @@ public class ImportParWizardPage extends ImportWizardPage {
 		public void setPath(String path) {
 			this.path = path;
 		}
-	}
+		public Long getVersion() {
+			return version;
+		}
+		public void setVersion(Long version) {
+			this.version = version;
+		}
+		
+	}	
+
+    private String removeNameFromPath(String fullPath){
+    	return fullPath.substring(0, fullPath.lastIndexOf("/"));
+    }    
 }
