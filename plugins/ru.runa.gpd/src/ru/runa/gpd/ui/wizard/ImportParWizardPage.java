@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFolder;
@@ -45,6 +46,54 @@ import ru.runa.wfe.definition.dto.WfDefinition;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.Lists;
+
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import org.eclipse.core.resources.IContainer;
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IFolder;
+import org.eclipse.core.runtime.IPath;
+import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.ITreeContentProvider;
+import org.eclipse.jface.viewers.LabelProvider;
+import org.eclipse.jface.viewers.TreeViewer;
+import org.eclipse.jface.viewers.Viewer;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.SashForm;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.FileDialog;
+import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Text;
+
+import ru.runa.gpd.Localization;
+import ru.runa.gpd.PluginLogger;
+import ru.runa.gpd.ProcessCache;
+import ru.runa.gpd.lang.model.ProcessDefinition;
+import ru.runa.gpd.settings.WFEConnectionPreferencePage;
+import ru.runa.gpd.ui.custom.Dialogs;
+import ru.runa.gpd.ui.custom.SyncUIHelper;
+import ru.runa.gpd.util.IOUtils;
+import ru.runa.gpd.wfe.ConnectorCallback;
+import ru.runa.gpd.wfe.WFEServerProcessDefinitionImporter;
+import ru.runa.wfe.definition.dto.WfDefinition;
+
+import com.google.common.base.Objects;
+import com.google.common.base.Throwables;
+import com.google.common.collect.Lists;
+
 
 public class ImportParWizardPage extends ImportWizardPage {
     private Button importFromFileButton;
@@ -154,7 +203,7 @@ public class ImportParWizardPage extends ImportWizardPage {
 
     private void setupServerDefinitionViewer(){
     	Map<WfDefinition, List<WfDefinition>> definitions = WFEServerProcessDefinitionImporter.getInstance().loadCachedData();
-    	DefinitionNode treeDefinitions = createTree(definitions);
+    	DefinitionNode treeDefinitions = createTree(new TreeMap<>(definitions));
         serverDefinitionViewer.setInput(treeDefinitions);
         serverDefinitionViewer.refresh(true);
     }
@@ -211,7 +260,9 @@ public class ImportParWizardPage extends ImportWizardPage {
             		if (selectedDefinitionNode.isGroup()){ 
             			getChildNodes(selectedDefinitionNode, defSelections);     
                	   }else{
-               		    defSelections.add((WfDefinition) selected);
+               		    //in case we don't want group name to be imported
+               		    selectedDefinitionNode.incrementalPath = "";               		    
+               		    defSelections.add((WfDefinition) selectedDefinitionNode);
                	   }
             	}
 
@@ -223,7 +274,9 @@ public class ImportParWizardPage extends ImportWizardPage {
                 parInputStreams = new InputStream[defSelections.size()];
                 for (int i = 0; i < processes.length; i++) {
                 	DefinitionNode definitionNode = (DefinitionNode)defSelections.get(i);
-                    Process process = new Process(definitionNode.getName(), removeNameFromPath(definitionNode.incrementalPath), definitionNode.getVersion());
+                	//adjust path if not entire group is selected
+                	String path = !definitionNode.incrementalPath.isEmpty() ? removeNameFromPath(definitionNode.incrementalPath) : definitionNode.incrementalPath;
+                    Process process = new Process(definitionNode.getName(), path, definitionNode.getVersion());
                     processes[i] = process;
                     WfDefinition stub = defSelections.get(i);
                     byte[] par = WFEServerProcessDefinitionImporter.getInstance().loadPar(stub);
@@ -251,7 +304,7 @@ public class ImportParWizardPage extends ImportWizardPage {
                 IOUtils.extractArchiveToFolder(parInputStreams[i], processFolder);
                 
                 //TODO: check, conflicting with previous logic 
-                /*
+                
                 IFile definitionFile = IOUtils.getProcessDefinitionFile(processFolder);                
                 ProcessDefinition definition = ProcessCache.newProcessDefinitionWasCreated(definitionFile);
                 if (definition != null && !Objects.equal(definition.getName(), processFolder.getName())) {
@@ -262,7 +315,7 @@ public class ImportParWizardPage extends ImportWizardPage {
                     IFile movedDefinitionFile = IOUtils.getProcessDefinitionFile(processFolder);
                     ProcessCache.newProcessDefinitionWasCreated(movedDefinitionFile);
                     ProcessCache.invalidateProcessDefinition(definitionFile);
-                }*/
+                }
             }
         } catch (Exception exception) {
             PluginLogger.logErrorWithoutDialog("import par", exception);
@@ -573,4 +626,8 @@ public class ImportParWizardPage extends ImportWizardPage {
     private String removeNameFromPath(String fullPath){
     	return fullPath.substring(0, fullPath.lastIndexOf("/"));
     }    
+    
+    private String getNameFromPath(String fullPath){
+    	return fullPath.substring(fullPath.lastIndexOf("/"), fullPath.length());
+    } 
 }
