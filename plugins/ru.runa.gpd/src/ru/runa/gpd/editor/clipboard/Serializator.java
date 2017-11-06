@@ -48,14 +48,15 @@ final class Serializator {
         out.writeBoolean(variable.isComplex());
         if (variable.isComplex()) {
             write(out, variable.getUserType());
-        } else {
-            boolean resizableVariable = variable.getProcessDefinition() != null && VariableUtils.isResizableVariable(variable);
-            out.writeBoolean(resizableVariable);
-            if (resizableVariable) {
+        }
+        else {
+            boolean containerVariable = variable.getProcessDefinition() != null && VariableUtils.isContainerVariable(variable);
+            out.writeBoolean(containerVariable);
+            if (containerVariable) {
                 String[] componentNames = variable.getFormatComponentClassNames();
                 List<VariableUserType> vuts = Lists.newArrayList();
                 for (String componentName : componentNames) {
-                    if (componentName.indexOf(".") < 0) { // UserType?
+                    if (VariableUtils.isValidUserTypeName(componentName)) {
                         VariableUserType vut = variable.getProcessDefinition().getVariableUserType(componentName);
                         if (vut != null) {
                             vuts.add(vut);
@@ -86,17 +87,29 @@ final class Serializator {
             VariableUserType type = new VariableUserType();
             read(in, type, processDefinition);
             variable.setUserType(type);
-        } else if (in.readBoolean()) {
+        }
+        else if (in.readBoolean()) {
             int vutSize = in.readInt();
             for (int i = 0; i < vutSize; i++) {
                 VariableUserType vut = new VariableUserType();
                 read(in, vut, processDefinition);
                 if (processDefinition.getVariableUserType(vut.getName()) == null) {
-                    processDefinition.addVariableUserType(vut);
+                    addVariableUserType(processDefinition, vut);
                 }
             }
         }
         variable.setStoreType((VariableStoreType) in.readObject());
+    }
+
+    private static void addVariableUserType(ProcessDefinition pd, VariableUserType type) {
+        pd.addVariableUserType(type);
+        for (Variable v : type.getAttributes()) {
+            if (v.isComplex()) {
+                if (pd.getVariableUserType(v.getUserType().getName()) == null) {
+                    addVariableUserType(pd, v.getUserType());
+                }
+            }
+        }
     }
 
     static void write(ObjectOutputStream out, VariableUserType type) throws IOException {
