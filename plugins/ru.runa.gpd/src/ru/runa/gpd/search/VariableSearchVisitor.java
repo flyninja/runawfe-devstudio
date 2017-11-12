@@ -53,7 +53,7 @@ import com.google.common.collect.Maps;
 
 public class VariableSearchVisitor {
 
-    public static final String REGEX_SCRIPT_VARIABLE = "[\"'{(,\\s]%s[\"'}),.;\\s]";
+    public static final String REGEX_SCRIPT_VARIABLE = "[\"'{(,\\s=]%s[\"'}),.;\\s=]";
 
     private final VariableSearchQuery query;
     private IProgressMonitor progressMonitor;
@@ -63,7 +63,7 @@ public class VariableSearchVisitor {
     private final MultiStatus status;
     private final Matcher matcher;
     private final Matcher matcherWithBrackets;
-    private Matcher matcherScriptingName;
+    private final Matcher matcherScriptingName;
 
     public VariableSearchVisitor(VariableSearchQuery query) {
         this.query = query;
