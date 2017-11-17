@@ -27,15 +27,15 @@ public class EndTextDecoration extends TextDecorationNode {
 
         @Override
         public void pack() {
-        	IDimension nameDimension = GraphitiUi.getUiLayoutService().calculateTextSize(target.getName(), getFont(name));
+            IDimension nameDimension = GraphitiUi.getUiLayoutService().calculateTextSize(target.getName(), name.getFont());
             name.setWidth(nameDimension.getWidth());
             name.setHeight(nameDimension.getHeight());
         }
 
         @Override
         public void update() {
-        	name.setValue(getTarget().getName());
-        	IDimension nameDim = GraphitiUi.getUiLayoutService().calculateTextSize(getTarget().getName(), getFont(name));
+            name.setValue(getTarget().getName());
+            IDimension nameDim = GraphitiUi.getUiLayoutService().calculateTextSize(getTarget().getName(), name.getFont());
             int oldWidth = name.getWidth();
             name.setWidth(nameDim.getWidth());
             name.setX(name.getX() + (oldWidth - nameDim.getWidth()) / 2);
@@ -47,5 +47,7 @@ public class EndTextDecoration extends TextDecorationNode {
         public PictogramElement getOwner() {
             return owner;
         }
+
     }
+
 }

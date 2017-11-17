@@ -20,6 +20,7 @@ import org.eclipse.graphiti.services.Graphiti;
 import org.eclipse.graphiti.services.IGaService;
 import org.eclipse.graphiti.services.IPeCreateService;
 import org.eclipse.graphiti.ui.services.GraphitiUi;
+import org.eclipse.graphiti.util.IColorConstant;
 
 import ru.runa.gpd.editor.graphiti.DiagramFeatureProvider;
 import ru.runa.gpd.editor.graphiti.GaProperty;
@@ -74,8 +75,7 @@ public class AddTransitionFeature extends AbstractAddFeature {
         IGaService gaService = Graphiti.getGaService();
         Polyline polyline = gaService.createPolyline(connection);
         polyline.setLineStyle(LineStyle.SOLID);
-        polyline.setLineWidth(1);
-        polyline.setStyle(StyleUtil.getStyleForTransition(getDiagram()));
+        polyline.setForeground(Graphiti.getGaService().manageColor(getDiagram(), IColorConstant.BLACK));
         // create link and wire it
         link(connection, transition);
         // add dynamic text decorator for the reference name
@@ -91,17 +91,16 @@ public class AddTransitionFeature extends AbstractAddFeature {
 
     private void createLabel(Connection connection, String transitionName, org.eclipse.draw2d.geometry.Point location, boolean visible) {
         ConnectionDecorator connectionDecorator = Graphiti.getPeCreateService().createConnectionDecorator(connection, true, 0.5, true);
-        Text text = Graphiti.getGaService().createText(connectionDecorator);
+        Text text = Graphiti.getGaService().createDefaultText(getDiagram(), connectionDecorator);
         text.setHorizontalAlignment(Orientation.ALIGNMENT_LEFT);
         text.setVerticalAlignment(Orientation.ALIGNMENT_CENTER);
-        text.setStyle(StyleUtil.getStyleForText(getDiagram(), "transition"));
         if (location != null) {
             Graphiti.getGaService().setLocation(text, location.x, location.y);
         } else {
             Graphiti.getGaService().setLocation(text, 10, 0);
         }
         text.setValue(transitionName);
-        IDimension textDimension = GraphitiUi.getUiLayoutService().calculateTextSize(transitionName, text.getStyle().getFont());
+        IDimension textDimension = GraphitiUi.getUiLayoutService().calculateTextSize(transitionName, text.getFont());
         Graphiti.getGaService().setSize(text, textDimension.getWidth(), textDimension.getHeight());
         connectionDecorator.getProperties().add(new GaProperty(GaProperty.ID, GaProperty.NAME));
         connectionDecorator.setVisible(visible);
@@ -112,7 +111,6 @@ public class AddTransitionFeature extends AbstractAddFeature {
         int xy[] = new int[] { -10, -5, 0, 0, -10, 5, -8, 0 };
         int beforeAfter[] = new int[] { 3, 3, 0, 0, 3, 3, 3, 3 };
         Polygon polyline = Graphiti.getGaCreateService().createPolygon(connectionDecorator, xy, beforeAfter);
-        polyline.setLineWidth(1);
         polyline.setStyle(StyleUtil.getStyleForPolygonArrow(getDiagram()));
     }
 
@@ -121,9 +119,18 @@ public class AddTransitionFeature extends AbstractAddFeature {
         int xy[] = new int[] { -7, -4, 0, 0, -7, 4, -14, 0 };
         int beforeAfter[] = new int[] { 0, 0, 0, 0, 0, 0, 0, 0 };
         Polygon polyline = Graphiti.getGaCreateService().createPolygon(connectionDecorator, xy, beforeAfter);
-        polyline.setLineWidth(1);
         polyline.setStyle(StyleUtil.getStyleForPolygonDiamond(getDiagram()));
         connectionDecorator.getProperties().add(new GaProperty(GaProperty.ID, GaProperty.EXCLUSIVE_FLOW));
         connectionDecorator.setVisible(visible);
     }
+
+//    private void createDefaultFlow(Connection connection) {
+//        ConnectionDecorator connectionDecorator = Graphiti.getPeCreateService().createConnectionDecorator(connection, false, 0.03, true);
+//        int xy[] = new int[] { -12, -4, -20, -4 };
+//        int beforeAfter[] = new int[] { 0, 0, 0, 0 };
+//        Polygon polyline = Graphiti.getGaCreateService().createPolygon(connectionDecorator, xy, beforeAfter);
+//        polyline.setStyle(StyleUtil.getStyleForPolygonDiamond(getDiagram()));
+//        connectionDecorator.getProperties().add(new GaProperty(GaProperty.ID, GaProperty.DEFAULT_FLOW));
+//        connectionDecorator.setVisible(false);
+//    }
 }

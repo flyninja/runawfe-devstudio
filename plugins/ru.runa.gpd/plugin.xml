@@ -2202,7 +2202,7 @@
              name="%pref.extensions.localization">
        </page>
        <page
-			 class="ru.runa.gpd.settings.LanguagePreferencePage"
+			 class="ru.runa.gpd.settings.EmptyPreferencePage"
              id="gpd.pref.language"
              name="%pref.language">
        </page>
@@ -2214,7 +2214,7 @@
        </page>
        <page
              category="gpd.pref.language"
-             class="ru.runa.gpd.settings.BPMNPreferencePage"
+             class="ru.runa.gpd.settings.EmptyPreferencePage"
              id="gpd.pref.language.bpmn"
              name="%pref.language.bpmn">
        </page>
