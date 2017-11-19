@@ -8,6 +8,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
@@ -86,8 +88,10 @@ import com.google.common.collect.Maps;
  * </p>
  */
 public class FormEditor extends MultiPageEditorPart implements IResourceChangeListener, IComponentDropTarget {
+
     public static final String ID = "ru.runa.gpd.wysiwyg.WYSIWYGHTMLEditor";
     public static final int CLOSED = 197;
+    private static final Pattern HTML_CONTENT_PATTERN = Pattern.compile("^(.*?<(body|BODY).*?>)(.*?)(</(body|BODY)>.*?)$", Pattern.DOTALL);
     private HTMLSourceEditor sourceEditor;
     private Browser browser;
     private final ISelectionProvider selectionProvider = new SelectionProvider();
@@ -461,6 +465,10 @@ public class FormEditor extends MultiPageEditorPart implements IResourceChangeLi
 
     private void syncEditor2Browser() {
         String html = getSourceDocumentHTML();
+        Matcher matcher = HTML_CONTENT_PATTERN.matcher(html);
+        if (matcher.find()) {
+            html = matcher.group(3);
+        }
         if (ftlFormat) {
             components.clear();
             try {
@@ -590,6 +598,10 @@ public class FormEditor extends MultiPageEditorPart implements IResourceChangeLi
             if (ftlFormat) {
                 try {
                     html = DesignUtils.transformFromHtml(html, getVariables(), components);
+                    Matcher matcher = HTML_CONTENT_PATTERN.matcher(html);
+                    if (matcher.find()) {
+                        html = matcher.group(3);
+                    }
                     if (EditorsPlugin.DEBUG) {
                         PluginLogger.logInfo("Designer html = " + html);
                     }
