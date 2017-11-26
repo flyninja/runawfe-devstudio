@@ -618,6 +618,40 @@
        </action>
     </objectContribution>
   </extension>
+ <extension
+       point="org.eclipse.ui.menus">
+    <menuContribution
+          allPopups="false"
+          locationURI="popup:org.eclipse.ui.popup.any?after=additions">
+       <command
+             commandId="ru.runa.gpd.extension.regulations.ui.EditNodeRegulationsProperties"
+             label="%label.action.editNodeRegulationProperties"
+             style="push">
+          <visibleWhen
+                checkEnabled="false">
+             <and>
+	             <test
+	                   property="ru.runa.gpd.extension.regulations.ui.regulationsEnabled"
+	                   value="true">
+	             </test>
+	             <test
+	                   property="ru.runa.gpd.extension.regulations.ui.canEditNodeRegulations">
+	             </test>
+             </and>
+          </visibleWhen>
+       </command>
+    </menuContribution>
+ </extension>
+ <extension
+       point="org.eclipse.core.expressions.propertyTesters">
+    <propertyTester
+          class="ru.runa.gpd.extension.regulations.ui.EditNodeRegulationsPropertiesTester"
+          id="ru.runa.gpd.extension.regulations.ui.EditNodeRegulationsPropertiesTester"
+          namespace="ru.runa.gpd.extension.regulations.ui"
+          properties="regulationsEnabled,canEditNodeRegulations"
+          type="java.lang.Object">
+    </propertyTester>
+ </extension>
   
    <extension
          point="org.eclipse.ui.newWizards">
@@ -2814,7 +2848,7 @@
        </enablement>
     </statusContextViewer>
  </extension>
-   <extension
+ <extension
          point="ru.runa.gpd.groovyStuff">
       <type
             label="java.util.Date">
@@ -2832,70 +2866,52 @@
             label="java.lang.Math.random()">
       </method>
       <constant
+            label="null">
+      </constant>
+      <constant
+            label="true">
+            Boolean.TRUE
+      </constant>
+      <constant
+            label="false">
+            Boolean.FALSE
+      </constant>
+      <constant
             label="java.lang.Math.PI">
       </constant>
       <statement
             label="if">
-if () {
+if ( CONDITION ) {
 }
       </statement>
       <statement
             label="if/else">
-if () {
+if ( CONDITION ) {
 } else {
 }
       </statement>
       <statement
             label="if/else if/else">
-if () {
-} else if () {
+if ( CONDITION1 ) {
+} else if ( CONDITION2 ) {
 } else {
 }
       </statement>
       <statement
             label="switch">
-switch () {
-case :
+switch ( VALUE ) {
+case CONDITION1 :
    break
-case :
+case CONDITION2 :
    break
 default:
 }
       </statement>
-   </extension>
- <extension
-       point="org.eclipse.ui.menus">
-    <menuContribution
-          allPopups="false"
-          locationURI="popup:org.eclipse.ui.popup.any?after=additions">
-       <command
-             commandId="ru.runa.gpd.extension.regulations.ui.EditNodeRegulationsProperties"
-             label="%label.action.editNodeRegulationProperties"
-             style="push">
-          <visibleWhen
-                checkEnabled="false">
-             <and>
-	             <test
-	                   property="ru.runa.gpd.extension.regulations.ui.regulationsEnabled"
-	                   value="true">
-	             </test>
-	             <test
-	                   property="ru.runa.gpd.extension.regulations.ui.canEditNodeRegulations">
-	             </test>
-             </and>
-          </visibleWhen>
-       </command>
-    </menuContribution>
+      <statement
+            label="%ru.runa.gpd.groovyStuff.setListVariableAttributeValue">
+for (java.util.Map map : LIST_VARIABLE) {
+   map.put("ATTRIBUTE_NAME", VALUE);
+}      
+      </statement>
  </extension>
- <extension
-       point="org.eclipse.core.expressions.propertyTesters">
-    <propertyTester
-          class="ru.runa.gpd.extension.regulations.ui.EditNodeRegulationsPropertiesTester"
-          id="ru.runa.gpd.extension.regulations.ui.EditNodeRegulationsPropertiesTester"
-          namespace="ru.runa.gpd.extension.regulations.ui"
-          properties="regulationsEnabled,canEditNodeRegulations"
-          type="java.lang.Object">
-    </propertyTester>
- </extension>
-
 </plugin>
