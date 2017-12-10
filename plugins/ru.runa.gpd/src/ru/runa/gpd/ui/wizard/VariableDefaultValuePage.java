@@ -7,8 +7,10 @@ import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Text;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
+import org.json.simple.parser.JSONParser;
 
 import ru.runa.gpd.Localization;
 import ru.runa.gpd.lang.model.Variable;
@@ -88,6 +90,15 @@ public class VariableDefaultValuePage extends DynaContentWizardPage {
                     // TODO validate using UserTypeFormat
                     if (!(JSONValue.parse(defaultValue.replaceAll("&quot;", "\"")) instanceof JSONObject)) {
                         throw new Exception("Invalid user type value");
+                    }
+                } if (formatPage.getComponentClassNames().length > 0) { // List|Map
+                    try {
+                        Object json = new JSONParser().parse(defaultValue.replaceAll("&quot;", "\""));
+                        if (!(json instanceof JSONObject || json instanceof JSONArray)) {
+                            throw new Exception();
+                        }
+                    } catch (Exception e) { // ParseException's message is null
+                        throw new Exception("Invalid values");
                     }
                 } else {
                     String className = formatPage.getType().getJavaClassName();
