@@ -3,7 +3,6 @@ package ru.runa.gpd.editor.graphiti.update;
 import org.eclipse.graphiti.features.IReason;
 import org.eclipse.graphiti.features.context.IUpdateContext;
 import org.eclipse.graphiti.features.impl.Reason;
-import org.eclipse.graphiti.mm.algorithms.Ellipse;
 import org.eclipse.graphiti.mm.algorithms.GraphicsAlgorithm;
 import org.eclipse.graphiti.mm.algorithms.Text;
 import org.eclipse.graphiti.mm.pictograms.PictogramElement;
@@ -50,7 +49,7 @@ public class UpdateTransitionFeature extends UpdateFeature {
             if (!numberGa.getStyle().getId().endsWith(transition.getColor().name())) {
                 return Reason.createTrueReason();
             }
-            Ellipse colorMarkerGa = (Ellipse) PropertyUtil.findGaRecursiveByName(pe, GaProperty.TRANSITION_COLOR_MARKER);
+            GraphicsAlgorithm colorMarkerGa = PropertyUtil.findGaRecursiveByName(pe, GaProperty.TRANSITION_COLOR_MARKER);
             if (numberGa.getY() != nameTextGa.getY() || numberGa.getX() + numberOffsetX(colorMarkerGa, numberGa) != nameTextGa.getX()) {
                 return Reason.createTrueReason();
             }
@@ -82,23 +81,27 @@ public class UpdateTransitionFeature extends UpdateFeature {
             nameTextGa.getPictogramElement().setVisible(nameLabelVisible);
         }
         boolean visible = StyleUtil.isTransitionDecoratorVisible(transition);
-        Ellipse colorMarkerGa = (Ellipse) PropertyUtil.findGaRecursiveByName(pe, GaProperty.TRANSITION_COLOR_MARKER);
-        colorMarkerGa.setStyle(StyleUtil.getTransitionColorMarkerStyle(getDiagram(), transition, transition.getColor()));
-        colorMarkerGa.setWidth((int) (colorMarkerGa.getStyle().getFont().getSize() * 2));
-        colorMarkerGa.setHeight((int) (colorMarkerGa.getStyle().getFont().getSize() * 1.75));
-        colorMarkerGa.setY(nameTextGa.getY());
-        colorMarkerGa.setX(nameTextGa.getX() - colorMarkerGa.getWidth() - 1);
-        colorMarkerGa.getPictogramElement().setVisible(visible);
+        GraphicsAlgorithm colorMarkerGa = PropertyUtil.findGaRecursiveByName(pe, GaProperty.TRANSITION_COLOR_MARKER);
+        if (colorMarkerGa != null) {
+            colorMarkerGa.setStyle(StyleUtil.getTransitionColorMarkerStyle(getDiagram(), transition, transition.getColor()));
+            colorMarkerGa.setWidth((int) (colorMarkerGa.getStyle().getFont().getSize() * 2));
+            colorMarkerGa.setHeight((int) (colorMarkerGa.getStyle().getFont().getSize() * 1.75));
+            colorMarkerGa.setY(nameTextGa.getY());
+            colorMarkerGa.setX(nameTextGa.getX() - colorMarkerGa.getWidth() - 1);
+            colorMarkerGa.getPictogramElement().setVisible(visible);
+        }
         Text numberGa = (Text) PropertyUtil.findGaRecursiveByName(pe, GaProperty.TRANSITION_NUMBER);
-        numberGa.setValue(StyleUtil.getTransitionNumber(transition));
-        numberGa.setStyle(StyleUtil.getTransitionColorMarkerStyle(getDiagram(), transition, transition.getColor()));
-        numberGa.setY(nameTextGa.getY());
-        numberGa.setX(nameTextGa.getX() - numberOffsetX(colorMarkerGa, numberGa));
-        numberGa.getPictogramElement().setVisible(visible);
+        if (numberGa != null) {
+            numberGa.setValue(StyleUtil.getTransitionNumber(transition));
+            numberGa.setStyle(StyleUtil.getTransitionColorMarkerStyle(getDiagram(), transition, transition.getColor()));
+            numberGa.setY(nameTextGa.getY());
+            numberGa.setX(nameTextGa.getX() - numberOffsetX(colorMarkerGa, numberGa));
+            numberGa.getPictogramElement().setVisible(visible);
+        }
         return true;
     }
 
-    private int numberOffsetX(Ellipse colorMarkerGa, Text numberGa) {
+    private int numberOffsetX(GraphicsAlgorithm colorMarkerGa, Text numberGa) {
         int numberWidth = GraphitiUi.getUiLayoutService().calculateTextSize(numberGa.getValue(), numberGa.getStyle().getFont()).getWidth();
         return numberWidth + (colorMarkerGa.getWidth() - numberWidth) / 2 + 1;
     }
