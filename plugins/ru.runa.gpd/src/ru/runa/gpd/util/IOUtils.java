@@ -22,6 +22,7 @@ import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.Assert;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
@@ -33,6 +34,14 @@ import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
 
+import com.google.common.base.Charsets;
+import com.google.common.base.Strings;
+import com.google.common.base.Throwables;
+import com.google.common.collect.Lists;
+import com.google.common.io.ByteStreams;
+import com.google.common.io.Closeables;
+import com.google.common.io.Files;
+
 import ru.runa.gpd.BotCache;
 import ru.runa.gpd.BotStationNature;
 import ru.runa.gpd.PluginLogger;
@@ -41,14 +50,6 @@ import ru.runa.gpd.form.FormType;
 import ru.runa.gpd.form.FormTypeProvider;
 import ru.runa.gpd.lang.model.FormNode;
 import ru.runa.gpd.lang.par.ParContentProvider;
-
-import com.google.common.base.Charsets;
-import com.google.common.base.Strings;
-import com.google.common.base.Throwables;
-import com.google.common.collect.Lists;
-import com.google.common.io.ByteStreams;
-import com.google.common.io.Closeables;
-import com.google.common.io.Files;
 
 public class IOUtils {
     private static final ByteArrayInputStream EMPTY_STREAM = new ByteArrayInputStream(new byte[0]);
@@ -123,7 +124,7 @@ public class IOUtils {
     }
 
     public static String readStream(InputStream in) throws IOException {
-        return new String(readStreamAsBytes(in), Charsets.UTF_8);
+        return new String(readStreamAsBytes(in));
     }
 
     public static byte[] readStreamAsBytes(InputStream in) throws IOException {
@@ -180,9 +181,7 @@ public class IOUtils {
             throw new CoreException(new Status(IStatus.WARNING, "ru.runa.gpd", 0, "File already exist", null));
         }
         file.create(stream, true, null);
-        if (!Charsets.UTF_8.name().equals(file.getCharset())) {
-            file.setCharset(Charsets.UTF_8.name(), null);
-        }
+        Assert.isTrue(Charsets.UTF_8.name().equalsIgnoreCase(file.getCharset()));
     }
 
     public static void createOrUpdateFile(IFile file, InputStream stream) throws CoreException {
@@ -190,9 +189,7 @@ public class IOUtils {
             file.setContents(stream, true, false, null);
         } else {
             file.create(stream, true, null);
-            if (!Charsets.UTF_8.name().equals(file.getCharset())) {
-                file.setCharset(Charsets.UTF_8.name(), null);
-            }
+            Assert.isTrue(Charsets.UTF_8.name().equalsIgnoreCase(file.getCharset()));
         }
     }
 
@@ -273,9 +270,7 @@ public class IOUtils {
         }
         if (resource instanceof IFile) {
             IFile file = (IFile) resource;
-            if (!Charsets.UTF_8.name().equalsIgnoreCase(file.getCharset())) {
-                file.setCharset(Charsets.UTF_8.name(), null);
-            }
+            Assert.isTrue(Charsets.UTF_8.name().equalsIgnoreCase(file.getCharset()));
         }
         if (resource instanceof IContainer) {
             for (IResource member : ((IContainer) resource).members()) {
@@ -400,10 +395,9 @@ public class IOUtils {
         try {
             IResource[] resources = botFolder.members();
             for (int i = 0; i < resources.length; i++) {
-                if (resources[i] instanceof IFile
-                        && (Strings.isNullOrEmpty(resources[i].getFileExtension()) || !(resources[i].getFileExtension().equals(
-                                BotCache.CONFIGURATION_FILE_EXTENSION) || resources[i].getFileExtension().equals(
-                                BotCache.WORD_TEMPLATE_FILE_EXTENSION)))) {
+                if (resources[i] instanceof IFile && (Strings.isNullOrEmpty(resources[i].getFileExtension())
+                        || !(resources[i].getFileExtension().equals(BotCache.CONFIGURATION_FILE_EXTENSION)
+                                || resources[i].getFileExtension().equals(BotCache.WORD_TEMPLATE_FILE_EXTENSION)))) {
                     fileList.add((IFile) resources[i]);
                 }
             }
@@ -564,7 +558,7 @@ public class IOUtils {
             }
             if (selectedElement instanceof IAdaptable) {
                 IAdaptable adaptable = (IAdaptable) selectedElement;
-                IResource resource = (IResource) adaptable.getAdapter(IResource.class);
+                IResource resource = adaptable.getAdapter(IResource.class);
                 if (resource instanceof IProject || resource instanceof IFile) {
                     return resource;
                 }
