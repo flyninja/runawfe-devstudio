@@ -73,4 +73,5 @@ public interface PropertyNames {
     public static final String PROPERTY_COLOR = "color";
     public static final String PROPERTY_USE_GLOBALS = "useGlobals";
     public static final String PROPERTY_GLOBAL = "global";
+
 }

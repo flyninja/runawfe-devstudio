@@ -42,8 +42,8 @@ import ru.runa.gpd.lang.model.TaskState;
 import ru.runa.gpd.lang.model.Timer;
 import ru.runa.gpd.lang.model.TimerAction;
 import ru.runa.gpd.lang.model.Transition;
-import ru.runa.gpd.lang.model.Variable;
 import ru.runa.gpd.lang.model.TransitionColor;
+import ru.runa.gpd.lang.model.Variable;
 import ru.runa.gpd.lang.model.bpmn.AbstractEventNode;
 import ru.runa.gpd.lang.model.bpmn.CatchEventNode;
 import ru.runa.gpd.lang.model.bpmn.EventNodeType;
@@ -118,8 +118,6 @@ public class BpmnSerializer extends ProcessSerializer {
     public static final String END_TEXT_DECORATION = "endTextDecoration";
     private static final String ACTION_HANDLER = "actionHandler";
     private static final String EVENT_TYPE = "eventType";
-    private static final String USE_GLOBALS = "useGlobals";
-    private static final String GLOBAL = "global";
 
     @Override
     public boolean isSupported(Document document) {
