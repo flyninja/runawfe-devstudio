@@ -1,5 +1,7 @@
 package ru.runa.gpd.ui.wizard;
 
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
@@ -23,6 +25,8 @@ import org.eclipse.jface.viewers.ViewerComparator;
 import org.eclipse.jface.wizard.WizardPage;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.SashForm;
+import org.eclipse.swt.events.ModifyEvent;
+import org.eclipse.swt.events.ModifyListener;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.SelectionListener;
@@ -43,6 +47,7 @@ import org.eclipse.swt.widgets.TableColumn;
 import com.google.common.collect.Maps;
 
 import ru.runa.gpd.Localization;
+import ru.runa.gpd.PropertyNames;
 import ru.runa.gpd.SharedImages;
 import ru.runa.gpd.lang.model.FormNode;
 import ru.runa.gpd.lang.model.NamedGraphElement;
@@ -65,7 +70,7 @@ import ru.runa.gpd.validation.ValidatorDefinition;
 import ru.runa.gpd.validation.ValidatorDefinition.Param;
 import ru.runa.gpd.validation.ValidatorDefinitionRegistry;
 
-public class FieldValidatorsWizardPage extends WizardPage {
+public class FieldValidatorsWizardPage extends WizardPage implements PropertyChangeListener {
     private final FormNode formNode;
     private final ProcessDefinition processDefinition;
     private TabFolder tabFolder;
@@ -236,20 +241,24 @@ public class FieldValidatorsWizardPage extends WizardPage {
         TabItem tabItem2 = new TabItem(tabFolder, SWT.NONE);
         tabItem2.setText(Localization.getString("FieldValidatorsWizardPage.Swimlanes"));
         tabItem2.setControl(swimlanesTableViewer.getControl());
-        Composite right = new Composite(mainComposite, SWT.NONE);
+        SashForm right = new SashForm(mainComposite, SWT.VERTICAL);
         right.setLayoutData(data);
-        right.setLayout(new GridLayout(1, true));
 
-        Label validatorsLabel = new Label(right, SWT.NONE);
+        Composite topPane = new Composite(right, SWT.NONE);
+        topPane.setLayout(new GridLayout(1, false));
+
+        Label validatorsLabel = new Label(topPane, SWT.NONE);
         validatorsLabel.setText(Localization.getString("FieldValidatorsWizardPage.Validators"));
-        validatorsTableViewer = createTableViewer(right, SWT.BORDER | SWT.V_SCROLL | SWT.FULL_SELECTION);
-        validatorsTableViewer.setLabelProvider(new ValidatorDefinitionTableLabelProvider());
-        validatorsTableViewer.getControl().setLayoutData(new GridData(GridData.FILL_BOTH));
 
-        GridData groupData = new GridData(GridData.FILL_BOTH);
-        groupData.minimumHeight = 200;
-        infoGroup = new DefaultValidatorInfoControl(right);
-        infoGroup.setLayoutData(groupData);
+        validatorsTableViewer = createTableViewer(topPane, SWT.BORDER | SWT.V_SCROLL | SWT.FULL_SELECTION);
+        validatorsTableViewer.setLabelProvider(new ValidatorDefinitionTableLabelProvider());
+
+        Composite bottomPane = new Composite(right, SWT.NONE);
+        bottomPane.setLayout(new GridLayout(1, false));
+        bottomPane.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+
+        infoGroup = new DefaultValidatorInfoControl(bottomPane);
+        infoGroup.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         infoGroup.setVisible(false);
         validatorsTableViewer.addSelectionChangedListener(new ISelectionChangedListener() {
             @Override
@@ -301,17 +310,15 @@ public class FieldValidatorsWizardPage extends WizardPage {
             }
         }), new TableColumnDescription("#", 20, SWT.LEFT), new TableColumnDescription("property.name", 200, SWT.LEFT));
 
-        List<Variable> taskVariables = formNode.getVariables(true, false);
-        variablesTableViewer.setInput(taskVariables);
-        swimlanesTableViewer.setInput(processDefinition.getSwimlanes());
-        warningLabel = new Label(right, SWT.NONE);
-        data = new GridData(GridData.FILL_HORIZONTAL);
-        data.horizontalSpan = 2;
-        warningLabel.setLayoutData(data);
+        updateViewers();
+
+        warningLabel = new Label(bottomPane, SWT.NONE);
         warningLabel.setForeground(ColorConstants.red);
         warningLabel.setText(warningMessage);
         mainComposite.pack(true);
         setControl(pageControl);
+
+        processDefinition.addPropertyChangeListener(this);
     }
 
     private <S> void createTable(TableViewer viewer, DataViewerComparator<S> comparator, TableColumnDescription... column) {
@@ -388,6 +395,12 @@ public class FieldValidatorsWizardPage extends WizardPage {
 
         public DefaultValidatorInfoControl(Composite parent) {
             super(parent, true);
+            errorMessageText.addModifyListener(new ModifyListener() {
+                @Override
+                public void modifyText(ModifyEvent e) {
+                    setDirty(true);
+                }
+            });
             if (formNode.getLeavingTransitions().size() > 1) {
                 Group transitionsGroup = new Group(this, SWT.BORDER);
                 transitionsGroup.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
@@ -632,6 +645,13 @@ public class FieldValidatorsWizardPage extends WizardPage {
                     combo.setTypeClassName(entry.getValue().getType());
                 }
                 combo.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
+                combo.addSelectionListener(new SelectionAdapter() {
+                    @Override
+                    public void widgetSelected(SelectionEvent e) {
+                        super.widgetSelected(e);
+                        setDirty(true);
+                    }
+                });
                 inputCombos.put(entry.getKey(), combo);
             }
             this.pack(true);
@@ -754,6 +774,48 @@ public class FieldValidatorsWizardPage extends WizardPage {
 
     public boolean isDirty() {
         return dirty;
+    }
+
+    @Override
+    public void propertyChange(PropertyChangeEvent evt) {
+        String type = evt.getPropertyName();
+        if (PropertyNames.PROPERTY_CHILDREN_CHANGED.equals(type)) {
+            updateViewers();
+        } else if (evt.getSource() instanceof Variable) {
+            if (PropertyNames.PROPERTY_NAME.equals(type) || PropertyNames.PROPERTY_FORMAT.equals(type)
+                    || PropertyNames.PROPERTY_DEFAULT_VALUE.equals(type) || PropertyNames.PROPERTY_STORE_TYPE.equals(type)) {
+                if (evt.getSource() instanceof Swimlane) {
+                    swimlanesTableViewer.refresh(evt.getSource());
+                } else {
+                    variablesTableViewer.refresh(evt.getSource());
+                }
+            }
+        }
+    }
+
+    private void updateViewers() {
+        List<Variable> variables = formNode.getVariables(true, false);
+        variablesTableViewer.setInput(variables);
+        for (Variable variable : variables) {
+            variable.addPropertyChangeListener(this);
+        }
+        List<Swimlane> swimlanes = processDefinition.getSwimlanes();
+        swimlanesTableViewer.setInput(swimlanes);
+        for (Swimlane swimlane : swimlanes) {
+            swimlane.addPropertyChangeListener(this);
+        }
+    }
+
+    @Override
+    public void dispose() {
+        for (Variable variable : formNode.getVariables(true, false)) {
+            variable.removePropertyChangeListener(this);
+        }
+        for (Swimlane swimlane : processDefinition.getSwimlanes()) {
+            swimlane.removePropertyChangeListener(this);
+        }
+        processDefinition.removePropertyChangeListener(this);
+        super.dispose();
     }
 
 }
