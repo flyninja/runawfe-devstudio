@@ -1,6 +1,7 @@
 package ru.runa.gpd.ui.wizard;
 
 import java.util.List;
+
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IResource;
@@ -19,6 +20,7 @@ import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
+
 import ru.runa.gpd.Activator;
 import ru.runa.gpd.Localization;
 import ru.runa.gpd.form.FormCSSTemplate;
@@ -26,7 +28,6 @@ import ru.runa.gpd.form.FormCSSTemplateRegistry;
 import ru.runa.gpd.lang.Language;
 import ru.runa.gpd.lang.model.ProcessDefinition;
 import ru.runa.gpd.settings.PrefConstants;
-import ru.runa.gpd.ui.custom.TooManySpacesChecker;
 import ru.runa.gpd.util.IOUtils;
 import ru.runa.gpd.util.SwimlaneDisplayMode;
 
@@ -170,8 +171,7 @@ public class NewProcessDefinitionWizardPage extends WizardPage {
         } else if (processText.getText().length() == 0) {
             setErrorMessage(Localization.getString("error.no_process_name"));
             setPageComplete(false);
-        } else if (!ResourcesPlugin.getWorkspace().validateName(processText.getText(), IResource.FOLDER).isOK()
-                || !TooManySpacesChecker.isValid(processText.getText())) {
+        } else if (!ResourcesPlugin.getWorkspace().validateName(processText.getText(), IResource.FOLDER).isOK()) {
             setErrorMessage(Localization.getString("error.process_name_not_valid"));
             setPageComplete(false);
         } else if (isProcessExists()) {

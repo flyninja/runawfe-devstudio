@@ -1,6 +1,7 @@
 package ru.runa.gpd.ui.wizard;
 
 import java.net.URI;
+
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
@@ -29,8 +30,8 @@ import org.eclipse.ui.internal.ide.IDEWorkbenchPlugin;
 import org.eclipse.ui.internal.ide.IIDEHelpContextIds;
 import org.eclipse.ui.internal.ide.dialogs.ProjectContentsLocationArea;
 import org.eclipse.ui.internal.ide.dialogs.ProjectContentsLocationArea.IErrorMessageReporter;
+
 import ru.runa.gpd.Localization;
-import ru.runa.gpd.ui.custom.TooManySpacesChecker;
 
 public class NewBotStationWizardPage extends WizardPage {
     // initial value stores
@@ -313,10 +314,6 @@ public class NewBotStationWizardPage extends WizardPage {
         IStatus nameStatus = workspace.validateName(projectFieldContents, IResource.PROJECT);
         if (!nameStatus.isOK()) {
             setErrorMessage(nameStatus.getMessage());
-            return false;
-        }
-        if (!TooManySpacesChecker.isValid(projectNameField.getText())) {
-            setErrorMessage(Localization.getString("error.bot_station_name_not_valid"));
             return false;
         }
         IProject handle = getProjectHandle();

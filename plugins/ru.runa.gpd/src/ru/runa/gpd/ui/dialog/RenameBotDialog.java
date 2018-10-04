@@ -1,6 +1,5 @@
 package ru.runa.gpd.ui.dialog;
 
-import com.google.common.base.Strings;
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.IInputValidator;
@@ -11,9 +10,10 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
+
 import ru.runa.gpd.BotCache;
 import ru.runa.gpd.Localization;
-import ru.runa.gpd.ui.custom.TooManySpacesChecker;
+import com.google.common.base.Strings;
 
 public class RenameBotDialog extends InputDialog {
 
@@ -49,8 +49,7 @@ public class RenameBotDialog extends InputDialog {
 
     private void updateButtons() {
         getButton(IDialogConstants.OK_ID).setEnabled(
-                !(Strings.isNullOrEmpty(getText().getText()) || BotCache.getAllBotNames().contains(getText().getText()))
-                        && TooManySpacesChecker.isValid(getText().getText()));
+                !(Strings.isNullOrEmpty(getText().getText()) || BotCache.getAllBotNames().contains(getText().getText())));
     }
 
     @Override
